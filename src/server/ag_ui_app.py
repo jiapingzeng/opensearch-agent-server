@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -71,6 +72,51 @@ from server.run_routes import (  # noqa: E402
     get_run_events_route,
     get_run_route,
 )
+
+def _init_tracing() -> None:
+    """Initialize OpenTelemetry tracing.
+
+    Reads OTEL_EXPORTER_OTLP_ENDPOINT from the environment and configures:
+    - Strands SDK telemetry: agent invocations and tool call spans
+    - OpenInference Bedrock instrumentation: message content, tool inputs/outputs
+      in Phoenix-compatible OpenInference format
+    """
+    try:
+        from strands.telemetry import StrandsTelemetry
+
+        StrandsTelemetry().setup_otlp_exporter()
+        log_info_event(
+            logger,
+            f"✓ OpenTelemetry tracing enabled: {os.environ['OTEL_EXPORTER_OTLP_ENDPOINT']}",
+            "ag_ui.tracing_enabled",
+            otlp_endpoint=os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"],
+        )
+    except ImportError as e:
+        log_warning_event(
+            logger,
+            f"✗ OpenTelemetry tracing not available (missing strands-agents[otel]): {e}",
+            "ag_ui.tracing_unavailable",
+            error=str(e),
+        )
+        return
+
+    try:
+        from openinference.instrumentation.bedrock import BedrockInstrumentor
+
+        BedrockInstrumentor().instrument()
+        log_info_event(
+            logger,
+            "✓ Bedrock instrumentation enabled: message content and tool I/O will appear in traces",
+            "ag_ui.bedrock_instrumentation_enabled",
+        )
+    except ImportError as e:
+        log_warning_event(
+            logger,
+            f"✗ Bedrock instrumentation not available (missing openinference-instrumentation-bedrock): {e}",
+            "ag_ui.bedrock_instrumentation_unavailable",
+            error=str(e),
+        )
+
 
 # Set by lifespan at startup; used by routes at request time.
 persistence: Any | None = None
@@ -215,6 +261,9 @@ def create_app(config_override: ServerConfig | None = None) -> FastAPI:
         loop = asyncio.get_running_loop()
         _register_mcp_cancel_scope_exception_handler(loop)
 
+        if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
+            _init_tracing()
+
         from server.config import validate_config_on_startup
 
         validate_config_on_startup(config_resolved)
@@ -254,7 +303,7 @@ def create_app(config_override: ServerConfig | None = None) -> FastAPI:
         setup_rate_limiting(app, rate_limiter)
 
         # --- Orchestrator setup: register agent factories ---
-        from agents.art_agent import create_art_agent
+        from agents.art.art_agent import create_art_agent
         from agents.fallback_agent import create_fallback_agent
         from orchestrator.registry import AgentRegistration, AgentRegistry
         from orchestrator.router import PageContextRouter

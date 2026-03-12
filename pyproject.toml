@@ -12,7 +12,8 @@ requires-python = ">=3.12"
 dependencies = [
     "opensearch-py",
     "mcp",
-    "strands-agents[ollama]",
+    "strands-agents[ollama,otel]",
+    "openinference-instrumentation-bedrock",
     "python-dotenv",
     "opensearch-mcp-server-py",
     "ag-ui-protocol",
@@ -59,12 +60,18 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
+pythonpath = ["src", "tests"]
+markers = [
+    "unit: unit tests",
+    "integration: integration tests",
+]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/server", "src/orchestrator", "src/agents", "src/utils"]
+packages = ["src/server", "src/orchestrator", "src/agents", "src/utils", "src/tools"]
 
 [tool.hatch.build.sources]
 "src/server" = "server"
 "src/orchestrator" = "orchestrator"
 "src/agents" = "agents"
 "src/utils" = "utils"
+"src/tools" = "tools"
