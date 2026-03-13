@@ -21,7 +21,7 @@ OpenSearch Dashboards (AG-UI)
     ├── Router (context-based)
     ├── Agent Registry
     │   ├── ART Agent (strands-agents)
-    │   └── Fallback Agent
+    │   └── Default Agent
     └── OpenSearch MCP Server
             ↓
     OpenSearch Cluster
@@ -263,7 +263,7 @@ opensearch-agent-server/
 ├── src/
 │   ├── agents/          # Agent implementations
 │   │   ├── art_agent.py      # Main agent using strands-agents
-│   │   └── fallback_agent.py # Fallback for errors
+│   │   └── default_agent.py  # Default for unmatched contexts
 │   ├── orchestrator/    # Routing and registry
 │   │   ├── router.py         # Context-based routing
 │   │   └── registry.py       # Agent registry
