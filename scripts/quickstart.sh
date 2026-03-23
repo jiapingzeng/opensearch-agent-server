@@ -356,7 +356,7 @@ start_opensearch() {
   local sr_dir="$WORKSPACE/search-relevance"
   mkdir -p "$LOG_DIR"
 
-  bash -c "cd '$sr_dir' && exec ./gradlew run" \
+  bash -c "cd '$sr_dir' && exec ./gradlew run --preserve-data" \
     > "$LOG_DIR/opensearch.log" 2>&1 &
   disown
   local bg_pid=$!
