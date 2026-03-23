@@ -1,0 +1,11 @@
+.git
+.venv
+agent-quickstart
+__pycache__
+*.pyc
+.env
+.pytest_cache
+.ruff_cache
+.mypy_cache
+tests
+.claude

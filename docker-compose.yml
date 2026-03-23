@@ -1,0 +1,130 @@
+services:
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mcp-server:
+    build: .
+    command: ["uv", "run", "opensearch-mcp-server-py", "--transport", "stream", "--port", "3001"]
+    environment:
+      - OPENSEARCH_URL=http://opensearch:9200
+      - OPENSEARCH_NO_AUTH=true
+    ports:
+      - "3001:3001"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  agent-server:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - OPENSEARCH_URL=http://opensearch:9200
+      - AG_UI_AUTH_ENABLED=false
+      - AG_UI_CORS_ORIGINS=http://localhost:5601
+      - AG_UI_LOG_FORMAT=human
+      - AG_UI_LOG_LEVEL=INFO
+      - MCP_SERVER_URL=http://mcp-server:3001/mcp
+      - AG_UI_MAX_CONSECUTIVE_TIMEOUTS=18000
+    ports:
+      - "8001:8001"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+      mcp-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:latest
+    environment:
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - SERVER_HOST=0.0.0.0
+    ports:
+      - "5601:5601"
+    configs:
+      - source: osd_config
+        target: /usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+    depends_on:
+      opensearch:
+        condition: service_healthy
+      agent-server:
+        condition: service_healthy
+
+  setup:
+    image: alpine:latest
+    depends_on:
+      opensearch-dashboards:
+        condition: service_started
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add --no-cache curl jq > /dev/null 2>&1
+        echo "Waiting for OpenSearch Dashboards..."
+        until curl -sf http://opensearch-dashboards:5601/api/status > /dev/null 2>&1; do sleep 5; done
+        echo "OpenSearch Dashboards is ready."
+
+        echo "Creating data source..."
+        curl -s -o /tmp/ds.json http://opensearch-dashboards:5601/api/saved_objects/data-source \
+          -H 'osd-xsrf: true' \
+          -H 'Content-Type: application/json' \
+          -d '{"attributes":{"title":"Local OpenSearch","endpoint":"http://opensearch:9200","dataSourceVersion":"","auth":{"type":"no_auth","credentials":{}}}}'
+        cat /tmp/ds.json
+        echo ""
+        DS_ID=$$(jq -r '.id' /tmp/ds.json)
+
+        if [ -n "$$DS_ID" ]; then
+          echo "Data source created (id: $$DS_ID)"
+          echo "Creating workspace..."
+          curl -s -o /tmp/ws.json http://opensearch-dashboards:5601/api/workspaces \
+            -H 'osd-xsrf: true' \
+            -H 'Content-Type: application/json' \
+            -d "{\"attributes\":{\"name\":\"Search Relevance Demo\",\"description\":\"Default workspace for docker compose\",\"features\":[\"use-case-search\"]},\"settings\":{\"dataSources\":[\"$$DS_ID\"]}}"
+          cat /tmp/ws.json
+          echo ""
+        else
+          echo "Failed to create data source, skipping workspace creation."
+        fi
+
+        echo "Setup complete."
+
+configs:
+  osd_config:
+    content: |
+      server.host: "0.0.0.0"
+      opensearch.hosts: ["http://opensearch:9200"]
+      opensearch.ssl.verificationMode: none
+      uiSettings:
+        overrides:
+          "home:useNewHomePage": true
+      contextProvider:
+        enabled: true
+      chat:
+        enabled: true
+        agUiUrl: "http://agent-server:8001/runs"
+      data_source.enabled: true
+      data_source.hideLocalCluster: false
+      workspace.enabled: true
+      explore.enabled: true

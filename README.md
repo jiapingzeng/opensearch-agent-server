@@ -102,6 +102,27 @@ AG_UI_LOG_LEVEL=INFO
 
 ## Quick Start
 
+### Docker Compose
+
+1. **Configure LLM credentials** — copy `.env.example` and add your LLM provider credentials:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your AWS Bedrock credentials
+   ```
+
+2. **Start the stack**
+   ```bash
+   docker compose up
+   ```
+
+3. Open http://localhost:5601 and click the chat icon.
+
+To stop:
+
+```bash
+docker compose down
+```
+
 ### Complete Setup (3-Component Stack)
 
 To run the full demo with OpenSearch, Agent Server, and Dashboards:
