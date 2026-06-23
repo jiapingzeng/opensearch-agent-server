@@ -61,6 +61,94 @@ class TestCreateModelBedrock:
         )
 
 
+class TestCreateModelBedrockFallbacks:
+    """Tests for Bedrock model creation fallback chain."""
+
+    @pytest.fixture(autouse=True)
+    def _no_ollama(self, monkeypatch):
+        monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+        monkeypatch.delenv("BEDROCK_MODEL", raising=False)
+        monkeypatch.delenv("BEDROCK_SMALL_MODEL", raising=False)
+
+    @patch("strands.models.bedrock.BedrockModel.__init__", return_value=None)
+    @patch("boto3.Session")
+    def test_default_tier_falls_back_to_default_model_id(self, mock_session_cls, mock_init):
+        """Default tier with no env vars uses _DEFAULT_BEDROCK_MODEL_ID."""
+        mock_session = MagicMock()
+        mock_session_cls.return_value = mock_session
+
+        create_model()
+
+        mock_init.assert_called_once_with(
+            model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
+            boto_session=mock_session,
+            streaming=True,
+        )
+
+    @patch("strands.models.bedrock.BedrockModel.__init__", return_value=None)
+    @patch("boto3.Session")
+    def test_small_tier_falls_back_to_bedrock_model(self, mock_session_cls, mock_init, monkeypatch):
+        """Small tier with only BEDROCK_MODEL set falls back to it."""
+        monkeypatch.setenv("BEDROCK_MODEL", "arn:aws:bedrock:us-east-1:123:model/sonnet")
+        mock_session = MagicMock()
+        mock_session_cls.return_value = mock_session
+
+        create_model(tier="small")
+
+        mock_init.assert_called_once_with(
+            model_id="arn:aws:bedrock:us-east-1:123:model/sonnet",
+            boto_session=mock_session,
+            streaming=True,
+        )
+
+    @patch("strands.models.bedrock.BedrockModel.__init__", return_value=None)
+    @patch("boto3.Session")
+    def test_small_tier_falls_back_to_default_model_id(self, mock_session_cls, mock_init):
+        """Small tier with neither env var set uses _DEFAULT_BEDROCK_MODEL_ID."""
+        mock_session = MagicMock()
+        mock_session_cls.return_value = mock_session
+
+        create_model(tier="small")
+
+        mock_init.assert_called_once_with(
+            model_id="us.anthropic.claude-sonnet-4-20250514-v1:0",
+            boto_session=mock_session,
+            streaming=True,
+        )
+
+    @patch("strands.models.bedrock.BedrockModel.__init__", return_value=None)
+    @patch("boto3.Session")
+    def test_default_tier_falls_back_to_legacy_env_var(self, mock_session_cls, mock_init, monkeypatch):
+        """Default tier with legacy BEDROCK_INFERENCE_PROFILE_ARN still works."""
+        monkeypatch.setenv("BEDROCK_INFERENCE_PROFILE_ARN", "arn:aws:bedrock:us-east-1:123:inference-profile/my-profile")
+        mock_session = MagicMock()
+        mock_session_cls.return_value = mock_session
+
+        create_model()
+
+        mock_init.assert_called_once_with(
+            model_id="arn:aws:bedrock:us-east-1:123:inference-profile/my-profile",
+            boto_session=mock_session,
+            streaming=True,
+        )
+
+    @patch("strands.models.bedrock.BedrockModel.__init__", return_value=None)
+    @patch("boto3.Session")
+    def test_small_tier_falls_back_to_legacy_haiku_env_var(self, mock_session_cls, mock_init, monkeypatch):
+        """Small tier with legacy BEDROCK_HAIKU_INFERENCE_PROFILE_ARN still works."""
+        monkeypatch.setenv("BEDROCK_HAIKU_INFERENCE_PROFILE_ARN", "arn:aws:bedrock:us-east-1:123:inference-profile/haiku")
+        mock_session = MagicMock()
+        mock_session_cls.return_value = mock_session
+
+        create_model(tier="small")
+
+        mock_init.assert_called_once_with(
+            model_id="arn:aws:bedrock:us-east-1:123:inference-profile/haiku",
+            boto_session=mock_session,
+            streaming=True,
+        )
+
+
 class TestCreateModelOllama:
     """Tests for Ollama model creation."""
 
