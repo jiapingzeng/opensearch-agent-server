@@ -69,6 +69,8 @@ class TestCreateModelBedrockFallbacks:
         monkeypatch.delenv("OLLAMA_MODEL", raising=False)
         monkeypatch.delenv("BEDROCK_MODEL", raising=False)
         monkeypatch.delenv("BEDROCK_SMALL_MODEL", raising=False)
+        monkeypatch.delenv("BEDROCK_INFERENCE_PROFILE_ARN", raising=False)
+        monkeypatch.delenv("BEDROCK_HAIKU_INFERENCE_PROFILE_ARN", raising=False)
 
     @patch("strands.models.bedrock.BedrockModel.__init__", return_value=None)
     @patch("boto3.Session")
